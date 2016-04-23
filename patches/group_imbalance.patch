@@ -1,8 +1,8 @@
 diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
-index c2980e8..979d733 100644
+index adff850..65bea0b 100644
 --- a/kernel/sched/fair.c
 +++ b/kernel/sched/fair.c
-@@ -5942,6 +5942,8 @@ struct sg_lb_stats {
+@@ -6147,6 +6147,8 @@ struct sg_lb_stats {
  	unsigned int sum_nr_running; /* Nr tasks running in the group */
  	unsigned int idle_cpus;
  	unsigned int group_weight;
@@ -11,16 +11,16 @@ index c2980e8..979d733 100644
  	enum group_type group_type;
  	int group_no_capacity;
  #ifdef CONFIG_NUMA_BALANCING
-@@ -6261,6 +6263,8 @@ static inline void update_sg_lb_stats(struct lb_env *env,
+@@ -6446,6 +6448,8 @@ static inline void update_sg_lb_stats(struct lb_env *env,
  			bool *overload)
  {
  	unsigned long load;
-+   unsigned long min_load = ULONG_MAX;
-+   unsigned long max_load = 0UL;
- 	int i;
++	unsigned long min_load = ULONG_MAX;
++	unsigned long max_load = 0UL;
+ 	int i, nr_running;
  
  	memset(sgs, 0, sizeof(*sgs));
-@@ -6274,6 +6278,11 @@ static inline void update_sg_lb_stats(struct lb_env *env,
+@@ -6459,6 +6463,11 @@ static inline void update_sg_lb_stats(struct lb_env *env,
  		else
  			load = source_load(i, load_idx);
  
@@ -30,9 +30,9 @@ index c2980e8..979d733 100644
 +         max_load = load;
 +
  		sgs->group_load += load;
- 		sgs->group_usage += get_cpu_usage(i);
+ 		sgs->group_util += cpu_util(i);
  		sgs->sum_nr_running += rq->cfs.h_nr_running;
-@@ -6294,6 +6303,9 @@ static inline void update_sg_lb_stats(struct lb_env *env,
+@@ -6483,6 +6492,9 @@ static inline void update_sg_lb_stats(struct lb_env *env,
  	sgs->group_capacity = group->sgc->capacity;
  	sgs->avg_load = (sgs->group_load*SCHED_CAPACITY_SCALE) / sgs->group_capacity;
  
@@ -42,7 +42,7 @@ index c2980e8..979d733 100644
  	if (sgs->sum_nr_running)
  		sgs->load_per_task = sgs->sum_weighted_load / sgs->sum_nr_running;
  
-@@ -6323,14 +6335,15 @@ static bool update_sd_pick_busiest(struct lb_env *env,
+@@ -6512,14 +6524,15 @@ static bool update_sd_pick_busiest(struct lb_env *env,
  {
  	struct sg_lb_stats *busiest = &sds->busiest_stat;
  
@@ -64,7 +64,7 @@ index c2980e8..979d733 100644
  
  	/* This is the busiest node in its class. */
  	if (!(env->sd->flags & SD_ASYM_PACKING))
-@@ -6589,63 +6602,14 @@ static inline void calculate_imbalance(struct lb_env *env, struct sd_lb_stats *s
+@@ -6778,63 +6791,14 @@ static inline void calculate_imbalance(struct lb_env *env, struct sd_lb_stats *s
  	local = &sds->local_stat;
  	busiest = &sds->busiest_stat;
  
@@ -76,7 +76,13 @@ index c2980e8..979d733 100644
 -		busiest->load_per_task =
 -			min(busiest->load_per_task, sds->avg_load);
 -	}
--
++   if(local->min_load >= busiest->max_load) {
++      env->imbalance = 0;
++   }
++   else {
++      env->imbalance = (busiest->max_load - local->min_load) / 2;
++   }
+ 
 -	/*
 -	 * In the presence of smp nice balancing, certain scenarios can have
 -	 * max load less than avg load(as we skip the groups at or below
@@ -110,13 +116,7 @@ index c2980e8..979d733 100644
 -	 * for the minimum possible imbalance.
 -	 */
 -	max_pull = min(busiest->avg_load - sds->avg_load, load_above_capacity);
-+   if(local->min_load >= busiest->max_load) {
-+      env->imbalance = 0;
-+   }
-+   else {
-+      env->imbalance = (busiest->max_load - local->min_load) / 2;
-+   }
- 
+-
 -	/* How much load to actually move to equalise the imbalance */
 -	env->imbalance = min(
 -		max_pull * busiest->group_capacity,
@@ -135,7 +135,7 @@ index c2980e8..979d733 100644
  }
  
  /******* find_busiest_group() helpers end here *********************/
-@@ -6707,40 +6671,14 @@ static struct sched_group *find_busiest_group(struct lb_env *env)
+@@ -6896,40 +6860,14 @@ static struct sched_group *find_busiest_group(struct lb_env *env)
  	    busiest->group_no_capacity)
  		goto force_balance;
  
